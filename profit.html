@@ -147,6 +147,31 @@
 
   .footer { text-align: center; padding: 24px; font-size: 12px; color: var(--text-muted); }
 
+  /* LOGIN */
+  .login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; }
+  .login-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: 0 12px 40px rgba(0,0,0,.12); width: 100%; max-width: 400px; overflow: hidden; }
+  .login-header { background: linear-gradient(135deg, var(--accent) 0%, var(--accent2) 100%); padding: 32px 32px 24px; text-align: center; color: #fff; }
+  .login-logo { font-size: 36px; margin-bottom: 10px; }
+  .login-title { font-size: 20px; font-weight: 700; }
+  .login-subtitle { font-size: 13px; color: rgba(255,255,255,.7); margin-top: 4px; }
+  .login-body { padding: 28px 32px 32px; }
+  .login-body .field { margin-bottom: 16px; }
+  .login-body .field input { height: 44px; }
+  .login-body .btn { width: 100%; justify-content: center; height: 44px; margin-top: 4px; }
+  .login-body .btn:disabled { background: #9ca3af; cursor: not-allowed; }
+  .login-err { background: var(--red-soft); color: var(--red); border-radius: 10px; padding: 10px 14px; font-size: 13px; margin-top: 14px; }
+  .login-back { display: block; text-align: center; margin-top: 18px; font-size: 13px; color: var(--text-muted); text-decoration: none; }
+  .login-back:hover { color: var(--accent); }
+
+  .header-right { display: flex; align-items: center; gap: 14px; }
+  .user-chip { font-size: 12px; color: rgba(255,255,255,.8); display: flex; align-items: center; gap: 6px; }
+  .cloud { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: rgba(255,255,255,.15); color: #fff; }
+  .cloud.err { background: #c0392b; }
+  .hbtn { background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.25); color: #fff; border-radius: 8px; padding: 5px 10px; font-size: 12px; cursor: pointer; }
+  .hbtn:hover { background: rgba(255,255,255,.22); }
+  .banner { background: #fef3c7; color: var(--amber); border-radius: 12px; padding: 12px 16px; margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-size: 13px; }
+  .loading { opacity: .55; pointer-events: none; }
+
   @media (max-width: 900px) {
     .form-grid { grid-template-columns: repeat(2, 1fr); }
     .summary { grid-template-columns: repeat(2, 1fr); }
@@ -161,17 +186,48 @@
     .result .v { font-size: 20px; }
     .filters, .filters .f, .filters input, .filters select { width: 100% !important; }
     .stat.hl { grid-column: 1 / -1; }
+    .user-email-text, .header-back { display: none; }
+    .header-right { gap: 8px; }
   }
 </style>
 </head>
 <body>
 
+<!-- LOGIN -->
+<div class="login-wrap" id="loginPage">
+  <div class="login-card">
+    <div class="login-header">
+      <div class="login-logo">💰</div>
+      <div class="login-title">代購毛利計算</div>
+      <div class="login-subtitle">請使用記帳系統的帳號登入</div>
+    </div>
+    <form class="login-body" id="loginForm">
+      <div class="field"><label>電子郵件</label><input type="email" id="loginEmail" placeholder="your@email.com" autocomplete="email" required></div>
+      <div class="field"><label>密碼</label><input type="password" id="loginPw" placeholder="••••••••" autocomplete="current-password" required></div>
+      <button type="submit" class="btn btn-primary" id="loginBtn">登入</button>
+      <div class="login-err" id="loginErr" hidden></div>
+      <a class="login-back" href="./">← 回系統入口</a>
+    </form>
+  </div>
+</div>
+
+<div id="appWrap" hidden>
 <div class="header">
   <div class="header-logo">💰 代購毛利計算</div>
-  <a href="./">← 回系統入口</a>
+  <div class="header-right">
+    <span class="user-chip"><span class="cloud" id="cloud">☁ 已同步</span><span class="user-email-text" id="userEmail"></span></span>
+    <button type="button" class="hbtn" id="reloadBtn" title="重新讀取雲端資料（看其他人新增的紀錄）">⟳ 重新整理</button>
+    <button type="button" class="hbtn" id="logoutBtn">登出</button>
+    <a class="header-back" href="./">← 回系統入口</a>
+  </div>
 </div>
 
 <div class="main">
+  <div class="banner" id="migrateBanner" hidden>
+    <span>這台電腦裡有 <b id="localCount">0</b> 筆舊版（未上雲端）的紀錄，要上傳到雲端嗎？</span>
+    <span class="btns"><button type="button" class="btn btn-primary" id="migrateBtn">上傳到雲端</button><button type="button" class="btn btn-ghost" id="migrateSkip">不用了</button></span>
+  </div>
+
 
   <!-- 輸入區 -->
   <div class="panel">
@@ -269,38 +325,91 @@
 
     <p class="note">
       ※ 毛利金額 = 售價 − (進貨成本 + 國際物流 + 包裝 + 宅配運費 + 人工成本)；毛利率 = 毛利 ÷ 售價。<br>
-      ※ 紀錄存在「這台裝置的這個瀏覽器」裡。換電腦或手機時，先在原裝置「匯出 Excel」，再到新裝置「匯入 Excel」即可。建議定期匯出備份。
+      ※ 紀錄存在雲端，登入同一組帳號的任何電腦或手機都看得到；其他人剛新增的紀錄，按右上角「重新整理」即可看到。
     </p>
   </div>
 </div>
 
 <div class="footer">© 2026 企業管理系統　｜　由 Claude AI 協助建置</div>
+</div>
 <div class="toast" id="toast"></div>
 
 <script>
 (function () {
-  const STORE_KEY = 'profitRecords_v1';
+  // ══════════ 雲端設定（與記帳系統共用同一個 Supabase） ══════════
+  const SB_URL = 'https://eadmpkntatenqxblewhm.supabase.co';
+  const SB_KEY = 'sb_publishable_w_Gp8ymbAUZNRT2EPY6tIg_13YwTxTW';
+  const TABLE = 'profit_records';
+  // 可使用本系統的帳號（真正的權限由 Supabase 資料庫設定控管，這裡只用來顯示提示）
+  const ALLOWED_EMAILS = [
+    'boss07012001@gmail.com',
+    'alston99966633@gmail.com',
+    'aru63823@gmail.com',
+    'serene98300@gmail.com'
+  ];
+  const SESSION_KEY = 'profitSession_v1';
+  const OLD_LOCAL_KEY = 'profitRecords_v1';
+
   const COST_KEYS = ['purchase', 'intlShip', 'packing', 'delivery', 'labor'];
   const $ = id => document.getElementById(id);
 
-  // ---------- storage ----------
-  function load() {
-    try { return JSON.parse(localStorage.getItem(STORE_KEY)) || []; } catch (e) { return []; }
+  // ---------- session ----------
+  let session = null; // { access_token, refresh_token, email }
+  function saveSession() { try { session ? localStorage.setItem(SESSION_KEY, JSON.stringify(session)) : localStorage.removeItem(SESSION_KEY); } catch (e) {} }
+  function loadSession() { try { return JSON.parse(localStorage.getItem(SESSION_KEY)); } catch (e) { return null; } }
+
+  async function authToken(body, grant) {
+    const r = await fetch(`${SB_URL}/auth/v1/token?grant_type=${grant}`, {
+      method: 'POST', headers: { apikey: SB_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+    });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.error_description || d.msg || d.message || '登入失敗');
+    session = { access_token: d.access_token, refresh_token: d.refresh_token, email: (d.user && d.user.email || '').toLowerCase() };
+    saveSession();
+    return session;
   }
-  function save() {
-    try { localStorage.setItem(STORE_KEY, JSON.stringify(records)); }
-    catch (e) { toast('⚠ 無法儲存到瀏覽器，請先匯出 Excel 備份'); }
+  const signIn = (email, password) => authToken({ email, password }, 'password');
+  const refresh = () => authToken({ refresh_token: session.refresh_token }, 'refresh_token');
+
+  async function api(path, opts = {}, retried) {
+    const r = await fetch(`${SB_URL}/rest/v1/${path}`, {
+      ...opts,
+      headers: { apikey: SB_KEY, Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json', Prefer: 'return=representation', ...(opts.headers || {}) }
+    });
+    if (r.status === 401 && !retried && session && session.refresh_token) {
+      try { await refresh(); } catch (e) { logout(true); throw new Error('登入已過期，請重新登入'); }
+      return api(path, opts, true);
+    }
+    if (!r.ok) {
+      const e = await r.json().catch(() => ({}));
+      throw new Error(e.message || `雲端錯誤（${r.status}）`);
+    }
+    return r.status === 204 ? null : r.json().catch(() => null);
   }
-  let records = load();
+
+  // ---------- 欄位對應 ----------
+  const DB_MAP = { date: 'date', product: 'product', vendor: 'vendor', purchase: 'purchase', intlShip: 'intl_ship', packing: 'packing', delivery: 'delivery', labor: 'labor', price: 'price', cost: 'cost', profit: 'profit', margin: 'margin' };
+  function toDb(r) { const o = {}; for (const k in DB_MAP) o[DB_MAP[k]] = r[k] === undefined ? null : r[k]; return o; }
+  function fromDb(d) {
+    const r = { id: d.id, createdAt: Date.parse(d.created_at) || 0, createdBy: d.created_by || '' };
+    for (const k in DB_MAP) r[k] = d[DB_MAP[k]];
+    ['purchase', 'intlShip', 'packing', 'delivery', 'labor', 'price', 'cost', 'profit'].forEach(k => r[k] = num(r[k]));
+    r.margin = r.margin === null || r.margin === undefined ? null : Number(r.margin);
+    r.vendor = r.vendor || '';
+    return r;
+  }
+
+  let records = [];
   let editingId = null;
   let sortKey = 'date', sortDir = -1;
+  let busy = false;
 
   // ---------- helpers ----------
   const num = v => { const n = parseFloat(v); return isFinite(n) ? n : 0; };
   const round2 = n => Math.round(n * 100) / 100;
   const fmt = n => round2(n).toLocaleString('zh-TW', { maximumFractionDigits: 2 });
-  const pct = m => m === null ? '—' : (m * 100).toFixed(1) + '%';
-  const todayStr = () => { const d = new Date(); return ymd(d); };
+  const pct = m => m === null || m === undefined ? '—' : (m * 100).toFixed(1) + '%';
+  const todayStr = () => ymd(new Date());
   function ymd(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -308,12 +417,64 @@
     const cost = COST_KEYS.reduce((s, k) => s + num(r[k]), 0);
     const price = num(r.price);
     const profit = price - cost;
-    const margin = price > 0 ? profit / price : null;
+    const margin = price > 0 ? Math.round(profit / price * 1e6) / 1e6 : null;
     return { cost: round2(cost), profit: round2(profit), margin };
   }
   function toast(msg) {
     const t = $('toast'); t.textContent = msg; t.classList.add('show');
-    clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('show'), 2200);
+    clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('show'), 2400);
+  }
+  function setCloud(ok, msg) { const c = $('cloud'); c.textContent = msg; c.className = 'cloud' + (ok ? '' : ' err'); }
+  async function withBusy(fn) {
+    if (busy) return; busy = true;
+    document.querySelector('.main').classList.add('loading'); setCloud(true, '☁ 同步中…');
+    try { await fn(); setCloud(true, '☁ 已同步'); }
+    catch (e) { console.error(e); setCloud(false, '⚠ 同步失敗'); toast('⚠ ' + (e.message || '雲端操作失敗')); }
+    finally { busy = false; document.querySelector('.main').classList.remove('loading'); }
+  }
+
+  // ---------- 登入 / 登出 ----------
+  function showLogin(msg) {
+    $('appWrap').hidden = true; $('loginPage').hidden = false;
+    $('loginBtn').disabled = false; $('loginBtn').textContent = '登入';
+    if (msg) { $('loginErr').textContent = msg; $('loginErr').hidden = false; } else $('loginErr').hidden = true;
+  }
+  async function enterApp() {
+    if (!ALLOWED_EMAILS.includes(session.email)) {
+      const em = session.email; session = null; saveSession();
+      showLogin(`帳號 ${em} 沒有使用本系統的權限`); return;
+    }
+    $('loginPage').hidden = true; $('appWrap').hidden = false;
+    $('userEmail').textContent = session.email;
+    resetForm(false);
+    await loadAll();
+    checkLocalLegacy();
+  }
+  $('loginForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const email = $('loginEmail').value.trim(), pw = $('loginPw').value;
+    $('loginBtn').disabled = true; $('loginBtn').textContent = '登入中…'; $('loginErr').hidden = true;
+    try { await signIn(email, pw); $('loginPw').value = ''; await enterApp(); }
+    catch (err) {
+      const m = String(err.message || '');
+      showLogin(/invalid/i.test(m) ? 'Email 或密碼錯誤' : (m || '登入失敗'));
+    }
+  });
+  function logout(expired) {
+    if (session && !expired) fetch(`${SB_URL}/auth/v1/logout`, { method: 'POST', headers: { apikey: SB_KEY, Authorization: `Bearer ${session.access_token}` } }).catch(() => {});
+    session = null; saveSession(); records = []; editingId = null;
+    showLogin(expired ? '登入已過期，請重新登入' : '');
+  }
+  $('logoutBtn').addEventListener('click', () => logout(false));
+  $('reloadBtn').addEventListener('click', () => loadAll(true));
+
+  async function loadAll(manual) {
+    await withBusy(async () => {
+      const rows = await api(`${TABLE}?select=*&order=date.desc,created_at.desc&limit=10000`, { method: 'GET' });
+      records = (rows || []).map(fromDb);
+      render();
+      if (manual) toast(`✓ 已讀取 ${records.length} 筆`);
+    });
   }
 
   // ---------- form ----------
@@ -353,27 +514,32 @@
     if (!r.date || !r.product) { toast('請填寫日期與產品名稱'); return; }
     if (!(r.price > 0)) { toast('請填寫售價'); $('price').focus(); return; }
     Object.assign(r, calc(r));
-    if (editingId) {
-      const i = records.findIndex(x => x.id === editingId);
-      if (i > -1) records[i] = { ...records[i], ...r };
-      toast('✓ 已更新');
-    } else {
-      r.id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-      r.createdAt = Date.now();
-      records.push(r);
-      toast('✓ 已新增，可以繼續輸入下一筆');
-    }
-    save();
-    resetForm(true);
-    render();
-    $('product').focus();
+    withBusy(async () => {
+      if (editingId) {
+        const rows = await api(`${TABLE}?id=eq.${encodeURIComponent(editingId)}`, { method: 'PATCH', body: JSON.stringify(toDb(r)) });
+        if (!rows || !rows.length) throw new Error('更新失敗，可能沒有修改權限');
+        const i = records.findIndex(x => x.id === editingId);
+        if (i > -1) records[i] = fromDb(rows[0]);
+        toast('✓ 已更新');
+      } else {
+        const rows = await api(TABLE, { method: 'POST', body: JSON.stringify(toDb(r)) });
+        records.push(fromDb(rows[0]));
+        toast('✓ 已新增，可以繼續輸入下一筆');
+      }
+      resetForm(true);
+      render();
+      $('product').focus();
+    });
   });
   $('cancelBtn').addEventListener('click', () => { resetForm(false); render(); });
 
+  function fillForm(r) {
+    ['product', 'vendor', 'price', ...COST_KEYS].forEach(k => $(k).value = r[k] === 0 && k !== 'price' ? '' : r[k]);
+  }
   function startEdit(id) {
     const r = records.find(x => x.id === id); if (!r) return;
     editingId = id;
-    ['date', 'product', 'vendor', 'price', ...COST_KEYS].forEach(k => $(k).value = r[k] === 0 && k !== 'price' ? '' : r[k]);
+    fillForm(r); $('date').value = r.date;
     $('formTitle').textContent = '編輯：' + r.product;
     $('editTag').hidden = false;
     $('submitBtn').textContent = '✓ 儲存修改';
@@ -383,16 +549,18 @@
   }
   function del(id) {
     const r = records.find(x => x.id === id); if (!r) return;
-    if (!confirm(`確定刪除「${r.product}」這筆紀錄？`)) return;
-    records = records.filter(x => x.id !== id);
-    if (editingId === id) resetForm(false);
-    save(); render(); toast('已刪除');
+    if (!confirm(`確定刪除「${r.product}」這筆紀錄？\n刪除後所有帳號都看不到這筆資料。`)) return;
+    withBusy(async () => {
+      await api(`${TABLE}?id=eq.${encodeURIComponent(id)}`, { method: 'DELETE', headers: { Prefer: 'return=minimal' } });
+      records = records.filter(x => x.id !== id);
+      if (editingId === id) resetForm(false);
+      render(); toast('已刪除');
+    });
   }
   function dup(id) {
     const r = records.find(x => x.id === id); if (!r) return;
     resetForm(false);
-    ['product', 'vendor', 'price', ...COST_KEYS].forEach(k => $(k).value = r[k] === 0 && k !== 'price' ? '' : r[k]);
-    $('date').value = todayStr();
+    fillForm(r); $('date').value = todayStr();
     liveCalc();
     window.scrollTo({ top: 0, behavior: 'smooth' });
     toast('已複製到上方，可修改後新增');
@@ -470,16 +638,16 @@
       const neg = r.profit < 0;
       return `<tr class="${r.id === editingId ? 'editing' : ''}">
         <td>${esc(r.date)}</td>
-        <td class="prod" title="${esc(r.product)}">${esc(r.product)}</td>
+        <td class="prod" title="${esc(r.product)}${r.createdBy ? '\n建立者：' + esc(r.createdBy) : ''}">${esc(r.product)}</td>
         <td>${esc(r.vendor) || '<span style="color:#b0b8c1">—</span>'}</td>
         ${COST_KEYS.map(k => `<td class="n">${fmt(r[k])}</td>`).join('')}
         <td class="n">${fmt(r.price)}</td>
         <td class="n ${neg ? 'neg' : 'profit'}">${fmt(r.profit)}</td>
         <td class="n ${neg ? 'neg' : ''}">${pct(r.margin)}</td>
         <td><div class="act">
-          <button data-a="edit" data-id="${r.id}">編輯</button>
-          <button data-a="dup" data-id="${r.id}">複製</button>
-          <button data-a="del" data-id="${r.id}" class="del">刪除</button>
+          <button data-a="edit" data-id="${esc(r.id)}">編輯</button>
+          <button data-a="dup" data-id="${esc(r.id)}">複製</button>
+          <button data-a="del" data-id="${esc(r.id)}" class="del">刪除</button>
         </div></td>
       </tr>`;
     }).join('');
@@ -494,6 +662,41 @@
   $('tbody').addEventListener('click', e => {
     const b = e.target.closest('button[data-a]'); if (!b) return;
     ({ edit: startEdit, del, dup })[b.dataset.a](b.dataset.id);
+  });
+
+  // ---------- 批次上傳（匯入 / 舊資料搬移） ----------
+  const keyOf = r => [r.date, r.product, r.vendor, num(r.price), ...COST_KEYS.map(k => num(r[k]))].join('|');
+  async function uploadMany(list) {
+    const existing = new Set(records.map(keyOf));
+    const fresh = [];
+    let skipped = 0;
+    list.forEach(r => { const k = keyOf(r); if (existing.has(k)) { skipped++; return; } existing.add(k); fresh.push(r); });
+    for (let i = 0; i < fresh.length; i += 200) {
+      const rows = await api(TABLE, { method: 'POST', body: JSON.stringify(fresh.slice(i, i + 200).map(toDb)) });
+      (rows || []).forEach(d => records.push(fromDb(d)));
+    }
+    render();
+    return { added: fresh.length, skipped };
+  }
+
+  function checkLocalLegacy() {
+    let old = [];
+    try { old = JSON.parse(localStorage.getItem(OLD_LOCAL_KEY)) || []; } catch (e) {}
+    if (old.length) { $('localCount').textContent = old.length; $('migrateBanner').hidden = false; }
+  }
+  $('migrateBtn').addEventListener('click', () => withBusy(async () => {
+    let old = [];
+    try { old = JSON.parse(localStorage.getItem(OLD_LOCAL_KEY)) || []; } catch (e) {}
+    const list = old.filter(r => r && r.date && r.product).map(r => { const o = { date: r.date, product: r.product, vendor: r.vendor || '', price: num(r.price) }; COST_KEYS.forEach(k => o[k] = num(r[k])); return Object.assign(o, calc(o)); });
+    const res = await uploadMany(list);
+    try { localStorage.removeItem(OLD_LOCAL_KEY); } catch (e) {}
+    $('migrateBanner').hidden = true;
+    toast(`✓ 已上傳 ${res.added} 筆` + (res.skipped ? `，略過重複 ${res.skipped} 筆` : ''));
+  }));
+  $('migrateSkip').addEventListener('click', () => {
+    if (!confirm('確定不上傳？這些舊紀錄會從這台電腦刪除。')) return;
+    try { localStorage.removeItem(OLD_LOCAL_KEY); } catch (e) {}
+    $('migrateBanner').hidden = true;
   });
 
   // ---------- Excel ----------
@@ -530,42 +733,35 @@
     const file = e.target.files[0]; e.target.value = '';
     if (!file) return;
     if (typeof XLSX === 'undefined') { toast('Excel 元件載入失敗，請確認網路後重新整理'); return; }
+    let list = [];
     try {
       const wb = XLSX.read(await file.arrayBuffer(), { cellDates: true });
       const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: true, defval: '' });
       const head = (rows[0] || []).map(h => String(h).trim());
       const idx = FIELDS.map((f, i) => head.indexOf(HEADERS[i]));
       if (idx[0] < 0 || idx[1] < 0 || idx[8] < 0) { toast('格式不符：需要「日期、產品名稱、售價」欄位'); return; }
-      const keyOf = r => [r.date, r.product, r.vendor, r.price, ...COST_KEYS.map(k => r[k])].join('|');
-      const existing = new Set(records.map(keyOf));
-      let added = 0, skipped = 0;
-      rows.slice(1).forEach((row, n) => {
+      rows.slice(1).forEach(row => {
         const get = i => idx[i] < 0 ? '' : row[idx[i]];
         let date = get(0);
         if (date instanceof Date) date = ymd(date);
         else if (typeof date === 'number') { const d = XLSX.SSF.parse_date_code(date); date = `${d.y}-${String(d.m).padStart(2, '0')}-${String(d.d).padStart(2, '0')}`; }
         else date = String(date).trim().replace(/\//g, '-').replace(/^(\d{4})-(\d{1,2})-(\d{1,2})$/, (_, y, m, d) => `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`);
         const product = String(get(1)).trim();
-        if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !product || product === '合計' || String(get(0)).trim() === '合計') return;
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !product || product === '合計') return;
         const r = { date, product, vendor: String(get(2)).trim(), price: num(get(8)) };
         COST_KEYS.forEach((k, j) => r[k] = num(get(3 + j)));
-        Object.assign(r, calc(r));
-        if (existing.has(keyOf(r))) { skipped++; return; }
-        r.id = Date.now().toString(36) + n + Math.random().toString(36).slice(2, 6);
-        r.createdAt = Date.now() + n;
-        records.push(r); existing.add(keyOf(r)); added++;
+        list.push(Object.assign(r, calc(r)));
       });
-      save(); render();
-      toast(`✓ 匯入 ${added} 筆` + (skipped ? `，略過重複 ${skipped} 筆` : ''));
-    } catch (err) {
-      console.error(err); toast('匯入失敗，請確認是 Excel 檔');
-    }
+    } catch (err) { console.error(err); toast('匯入失敗，請確認是 Excel 檔'); return; }
+    withBusy(async () => {
+      const res = await uploadMany(list);
+      toast(`✓ 匯入 ${res.added} 筆` + (res.skipped ? `，略過重複 ${res.skipped} 筆` : ''));
+    });
   });
 
   // ---------- init ----------
-  $('date').value = todayStr();
-  liveCalc();
-  render();
+  session = loadSession();
+  if (session && session.access_token && session.email) enterApp(); else showLogin('');
 })();
 </script>
 </body>
