@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>代購毛利計算</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root {
+    --bg: #f0f4f8;
+    --card: #ffffff;
+    --accent: #1b4332;
+    --accent2: #2d6a4f;
+    --accent-soft: #e8f5ef;
+    --text: #1a1814;
+    --text-muted: #6b7280;
+    --border: #e5e7eb;
+    --red: #c0392b;
+    --red-soft: #fdf0ee;
+    --amber: #b45309;
+    --shadow: 0 2px 8px rgba(0,0,0,.07), 0 1px 2px rgba(0,0,0,.05);
+    --radius: 16px;
+    --sans: 'Noto Sans TC', sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  [hidden] { display: none !important; }
+  body { font-family: var(--sans); background: var(--bg); color: var(--text); min-height: 100vh; font-size: 14px; }
+  button, input, select { font-family: inherit; font-size: 14px; }
+
+  /* HEADER */
+  .header {
+    background: var(--accent); color: #fff; padding: 0 40px; height: 64px;
+    display: flex; align-items: center; justify-content: space-between;
+    position: sticky; top: 0; z-index: 100;
+  }
+  .header-logo { font-size: 18px; font-weight: 700; display: flex; align-items: center; gap: 10px; }
+  .header a { color: rgba(255,255,255,.75); text-decoration: none; font-size: 13px; }
+  .header a:hover { color: #fff; }
+
+  .main { max-width: 1240px; margin: 0 auto; padding: 32px 24px 60px; }
+
+  .panel {
+    background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+    box-shadow: var(--shadow); padding: 24px; margin-bottom: 24px;
+  }
+  .panel-title { font-size: 16px; font-weight: 700; margin-bottom: 18px; display: flex; align-items: center; gap: 8px; }
+  .panel-title .tag { font-size: 11px; font-weight: 700; background: #fef3c7; color: var(--amber); padding: 2px 8px; border-radius: 999px; }
+
+  /* FORM */
+  .form-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px 16px; }
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field label { font-size: 12px; font-weight: 500; color: var(--text-muted); }
+  .field label .req { color: var(--red); }
+  .field input, .filters input, .filters select {
+    border: 1px solid var(--border); border-radius: 10px; padding: 9px 12px; background: #fff; color: var(--text);
+    outline: none; transition: border-color .15s, box-shadow .15s; width: 100%;
+  }
+  .field input:focus, .filters input:focus, .filters select:focus { border-color: var(--accent2); box-shadow: 0 0 0 3px rgba(45,106,79,.12); }
+  .field input.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .span-2 { grid-column: span 2; }
+
+  .result-row {
+    margin-top: 20px; display: grid; grid-template-columns: repeat(3, 1fr) auto; gap: 14px; align-items: stretch;
+  }
+  .result {
+    background: var(--bg); border-radius: 12px; padding: 12px 16px;
+    display: flex; flex-direction: column; gap: 2px;
+  }
+  .result .k { font-size: 12px; color: var(--text-muted); }
+  .result .v { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .result.hl { background: var(--accent-soft); }
+  .result.hl .v { color: var(--accent); }
+  .result.neg { background: var(--red-soft); }
+  .result.neg .v { color: var(--red); }
+
+  .btns { display: flex; gap: 10px; align-items: center; }
+  .btn {
+    border: none; border-radius: 10px; padding: 10px 18px; font-weight: 700; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; transition: background .15s, transform .1s;
+  }
+  .btn:active { transform: translateY(1px); }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover { background: var(--accent2); }
+  .btn-ghost { background: var(--bg); color: var(--text); border: 1px solid var(--border); }
+  .btn-ghost:hover { background: #e5ebf1; }
+  .btn-excel { background: #217346; color: #fff; }
+  .btn-excel:hover { background: #1a5c38; }
+  .result-row .btns { flex-direction: column; justify-content: center; }
+  .result-row .btn { width: 100%; justify-content: center; }
+
+  /* SUMMARY */
+  .summary { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; margin-bottom: 18px; }
+  .stat { background: var(--bg); border-radius: 12px; padding: 14px 16px; }
+  .stat .k { font-size: 12px; color: var(--text-muted); margin-bottom: 4px; }
+  .stat .v { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .stat.hl { background: var(--accent); color: #fff; }
+  .stat.hl .k { color: rgba(255,255,255,.7); }
+
+  /* FILTERS */
+  .toolbar { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; justify-content: space-between; margin-bottom: 16px; }
+  .filters { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+  .filters .f { display: flex; flex-direction: column; gap: 4px; }
+  .filters .f span { font-size: 12px; color: var(--text-muted); }
+  .filters input[type=date] { width: 150px; }
+  .filters select { width: 160px; }
+  .filters input[type=search] { width: 180px; }
+  .quick { display: flex; gap: 6px; }
+  .chip {
+    border: 1px solid var(--border); background: #fff; border-radius: 999px; padding: 6px 12px; font-size: 12px;
+    cursor: pointer; color: var(--text-muted);
+  }
+  .chip:hover { border-color: var(--accent2); color: var(--accent); }
+
+  /* TABLE */
+  .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 12px; }
+  table { width: 100%; border-collapse: collapse; min-width: 1100px; }
+  th, td { padding: 10px 12px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  th {
+    background: var(--bg); font-size: 12px; font-weight: 700; color: var(--text-muted); text-align: left;
+    position: sticky; top: 0; cursor: pointer; user-select: none;
+  }
+  th.n, td.n { text-align: right; font-variant-numeric: tabular-nums; }
+  th .arr { font-size: 10px; margin-left: 2px; opacity: .6; }
+  tbody tr:hover { background: #f8fafc; }
+  tbody tr.editing { background: #fffbeb; }
+  td.profit { font-weight: 700; color: var(--accent); }
+  td.neg { color: var(--red); font-weight: 700; }
+  td.prod { max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
+  tfoot td { background: var(--accent-soft); font-weight: 700; border-bottom: none; }
+  .act { display: flex; gap: 4px; }
+  .act button {
+    border: none; background: transparent; cursor: pointer; padding: 4px 8px; border-radius: 6px; font-size: 12px; color: var(--text-muted);
+  }
+  .act button:hover { background: var(--bg); color: var(--text); }
+  .act button.del:hover { background: var(--red-soft); color: var(--red); }
+  .empty { text-align: center; padding: 48px 16px; color: var(--text-muted); }
+  .empty b { display: block; font-size: 32px; margin-bottom: 8px; }
+
+  .note { font-size: 12px; color: var(--text-muted); margin-top: 14px; line-height: 1.7; }
+  .toast {
+    position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%) translateY(20px); opacity: 0;
+    background: var(--text); color: #fff; padding: 10px 18px; border-radius: 10px; font-size: 13px;
+    transition: all .25s; pointer-events: none; z-index: 200;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  .footer { text-align: center; padding: 24px; font-size: 12px; color: var(--text-muted); }
+
+  @media (max-width: 900px) {
+    .form-grid { grid-template-columns: repeat(2, 1fr); }
+    .summary { grid-template-columns: repeat(2, 1fr); }
+    .result-row { grid-template-columns: repeat(3, 1fr); }
+    .result-row .btns { grid-column: 1 / -1; flex-direction: row; }
+  }
+  @media (max-width: 600px) {
+    .header { padding: 0 16px; }
+    .main { padding: 20px 16px 40px; }
+    .panel { padding: 18px 16px; }
+    .result-row { grid-template-columns: 1fr; }
+    .result .v { font-size: 20px; }
+    .filters, .filters .f, .filters input, .filters select { width: 100% !important; }
+    .stat.hl { grid-column: 1 / -1; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-logo">💰 代購毛利計算</div>
+  <a href="./">← 回系統入口</a>
+</div>
+
+<div class="main">
+
+  <!-- 輸入區 -->
+  <div class="panel">
+    <div class="panel-title"><span id="formTitle">新增商品</span><span class="tag" id="editTag" hidden>編輯中</span></div>
+    <form id="form" autocomplete="off">
+      <div class="form-grid">
+        <div class="field">
+          <label>日期 <span class="req">*</span></label>
+          <input type="date" id="date" required>
+        </div>
+        <div class="field span-2">
+          <label>產品名稱 <span class="req">*</span></label>
+          <input type="text" id="product" placeholder="例：COSRX 蝸牛精華 100ml" required>
+        </div>
+        <div class="field">
+          <label>廠商名稱</label>
+          <input type="text" id="vendor" list="vendorList" placeholder="可直接選以前輸入過的">
+          <datalist id="vendorList"></datalist>
+        </div>
+
+        <div class="field"><label>進貨成本價</label><input class="num cost" type="number" id="purchase" min="0" step="any" inputmode="decimal" placeholder="0"></div>
+        <div class="field"><label>國際物流費</label><input class="num cost" type="number" id="intlShip" min="0" step="any" inputmode="decimal" placeholder="0"></div>
+        <div class="field"><label>包裝費</label><input class="num cost" type="number" id="packing" min="0" step="any" inputmode="decimal" placeholder="0"></div>
+        <div class="field"><label>宅配運費</label><input class="num cost" type="number" id="delivery" min="0" step="any" inputmode="decimal" placeholder="0"></div>
+        <div class="field"><label>人工成本</label><input class="num cost" type="number" id="labor" min="0" step="any" inputmode="decimal" placeholder="0"></div>
+        <div class="field"><label>售價 <span class="req">*</span></label><input class="num" type="number" id="price" min="0" step="any" inputmode="decimal" placeholder="0" required></div>
+      </div>
+
+      <div class="result-row">
+        <div class="result"><span class="k">總成本</span><span class="v" id="rCost">0</span></div>
+        <div class="result hl" id="rProfitBox"><span class="k">毛利金額（自動計算）</span><span class="v" id="rProfit">0</span></div>
+        <div class="result hl" id="rMarginBox"><span class="k">毛利率（自動計算）</span><span class="v" id="rMargin">—</span></div>
+        <div class="btns">
+          <button type="submit" class="btn btn-primary" id="submitBtn">＋ 新增紀錄</button>
+          <button type="button" class="btn btn-ghost" id="cancelBtn" hidden>取消編輯</button>
+        </div>
+      </div>
+    </form>
+  </div>
+
+  <!-- 紀錄區 -->
+  <div class="panel">
+    <div class="panel-title">紀錄列表</div>
+
+    <div class="summary">
+      <div class="stat"><div class="k">筆數</div><div class="v" id="sCount">0</div></div>
+      <div class="stat"><div class="k">總營收（售價合計）</div><div class="v" id="sRevenue">0</div></div>
+      <div class="stat"><div class="k">總成本</div><div class="v" id="sCost">0</div></div>
+      <div class="stat hl"><div class="k">總毛利</div><div class="v" id="sProfit">0</div></div>
+      <div class="stat"><div class="k">整體毛利率</div><div class="v" id="sMargin">—</div></div>
+    </div>
+
+    <div class="toolbar">
+      <div class="filters">
+        <label class="f"><span>起日</span><input type="date" id="fFrom"></label>
+        <label class="f"><span>迄日</span><input type="date" id="fTo"></label>
+        <label class="f"><span>廠商</span><select id="fVendor"><option value="">全部廠商</option></select></label>
+        <label class="f"><span>搜尋產品</span><input type="search" id="fKeyword" placeholder="關鍵字"></label>
+        <div class="quick">
+          <button type="button" class="chip" data-q="month">本月</button>
+          <button type="button" class="chip" data-q="last">上月</button>
+          <button type="button" class="chip" data-q="year">今年</button>
+          <button type="button" class="chip" data-q="all">清除篩選</button>
+        </div>
+      </div>
+      <div class="btns">
+        <button type="button" class="btn btn-ghost" id="importBtn" title="從之前匯出的 Excel 匯入紀錄">⬆ 匯入 Excel</button>
+        <button type="button" class="btn btn-excel" id="exportBtn">⬇ 匯出 Excel</button>
+        <input type="file" id="importFile" accept=".xlsx,.xls" hidden>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th data-k="date">日期<span class="arr"></span></th>
+            <th data-k="product">產品名稱<span class="arr"></span></th>
+            <th data-k="vendor">廠商名稱<span class="arr"></span></th>
+            <th class="n" data-k="purchase">進貨成本價<span class="arr"></span></th>
+            <th class="n" data-k="intlShip">國際物流費<span class="arr"></span></th>
+            <th class="n" data-k="packing">包裝費<span class="arr"></span></th>
+            <th class="n" data-k="delivery">宅配運費<span class="arr"></span></th>
+            <th class="n" data-k="labor">人工成本<span class="arr"></span></th>
+            <th class="n" data-k="price">售價<span class="arr"></span></th>
+            <th class="n" data-k="profit">毛利金額<span class="arr"></span></th>
+            <th class="n" data-k="margin">毛利率<span class="arr"></span></th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+        <tfoot id="tfoot"></tfoot>
+      </table>
+    </div>
+
+    <p class="note">
+      ※ 毛利金額 = 售價 − (進貨成本 + 國際物流 + 包裝 + 宅配運費 + 人工成本)；毛利率 = 毛利 ÷ 售價。<br>
+      ※ 紀錄存在「這台裝置的這個瀏覽器」裡。換電腦或手機時，先在原裝置「匯出 Excel」，再到新裝置「匯入 Excel」即可。建議定期匯出備份。
+    </p>
+  </div>
+</div>
+
+<div class="footer">© 2026 企業管理系統　｜　由 Claude AI 協助建置</div>
+<div class="toast" id="toast"></div>
+
+<script>
+(function () {
+  const STORE_KEY = 'profitRecords_v1';
+  const COST_KEYS = ['purchase', 'intlShip', 'packing', 'delivery', 'labor'];
+  const $ = id => document.getElementById(id);
+
+  // ---------- storage ----------
+  function load() {
+    try { return JSON.parse(localStorage.getItem(STORE_KEY)) || []; } catch (e) { return []; }
+  }
+  function save() {
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(records)); }
+    catch (e) { toast('⚠ 無法儲存到瀏覽器，請先匯出 Excel 備份'); }
+  }
+  let records = load();
+  let editingId = null;
+  let sortKey = 'date', sortDir = -1;
+
+  // ---------- helpers ----------
+  const num = v => { const n = parseFloat(v); return isFinite(n) ? n : 0; };
+  const round2 = n => Math.round(n * 100) / 100;
+  const fmt = n => round2(n).toLocaleString('zh-TW', { maximumFractionDigits: 2 });
+  const pct = m => m === null ? '—' : (m * 100).toFixed(1) + '%';
+  const todayStr = () => { const d = new Date(); return ymd(d); };
+  function ymd(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  function calc(r) {
+    const cost = COST_KEYS.reduce((s, k) => s + num(r[k]), 0);
+    const price = num(r.price);
+    const profit = price - cost;
+    const margin = price > 0 ? profit / price : null;
+    return { cost: round2(cost), profit: round2(profit), margin };
+  }
+  function toast(msg) {
+    const t = $('toast'); t.textContent = msg; t.classList.add('show');
+    clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('show'), 2200);
+  }
+
+  // ---------- form ----------
+  const form = $('form');
+  function readForm() {
+    const r = { date: $('date').value, product: $('product').value.trim(), vendor: $('vendor').value.trim(), price: num($('price').value) };
+    COST_KEYS.forEach(k => r[k] = num($(k).value));
+    return r;
+  }
+  function liveCalc() {
+    const c = calc(readForm());
+    $('rCost').textContent = fmt(c.cost);
+    $('rProfit').textContent = fmt(c.profit);
+    $('rMargin').textContent = pct(c.margin);
+    const neg = c.profit < 0;
+    $('rProfitBox').className = 'result ' + (neg ? 'neg' : 'hl');
+    $('rMarginBox').className = 'result ' + (neg ? 'neg' : 'hl');
+  }
+  form.addEventListener('input', liveCalc);
+
+  function resetForm(keepDateVendor) {
+    const d = $('date').value, v = $('vendor').value;
+    form.reset();
+    $('date').value = keepDateVendor && d ? d : todayStr();
+    if (keepDateVendor) $('vendor').value = v;
+    editingId = null;
+    $('formTitle').textContent = '新增商品';
+    $('editTag').hidden = true;
+    $('submitBtn').textContent = '＋ 新增紀錄';
+    $('cancelBtn').hidden = true;
+    liveCalc();
+  }
+
+  form.addEventListener('submit', e => {
+    e.preventDefault();
+    const r = readForm();
+    if (!r.date || !r.product) { toast('請填寫日期與產品名稱'); return; }
+    if (!(r.price > 0)) { toast('請填寫售價'); $('price').focus(); return; }
+    Object.assign(r, calc(r));
+    if (editingId) {
+      const i = records.findIndex(x => x.id === editingId);
+      if (i > -1) records[i] = { ...records[i], ...r };
+      toast('✓ 已更新');
+    } else {
+      r.id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+      r.createdAt = Date.now();
+      records.push(r);
+      toast('✓ 已新增，可以繼續輸入下一筆');
+    }
+    save();
+    resetForm(true);
+    render();
+    $('product').focus();
+  });
+  $('cancelBtn').addEventListener('click', () => { resetForm(false); render(); });
+
+  function startEdit(id) {
+    const r = records.find(x => x.id === id); if (!r) return;
+    editingId = id;
+    ['date', 'product', 'vendor', 'price', ...COST_KEYS].forEach(k => $(k).value = r[k] === 0 && k !== 'price' ? '' : r[k]);
+    $('formTitle').textContent = '編輯：' + r.product;
+    $('editTag').hidden = false;
+    $('submitBtn').textContent = '✓ 儲存修改';
+    $('cancelBtn').hidden = false;
+    liveCalc(); render();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+  function del(id) {
+    const r = records.find(x => x.id === id); if (!r) return;
+    if (!confirm(`確定刪除「${r.product}」這筆紀錄？`)) return;
+    records = records.filter(x => x.id !== id);
+    if (editingId === id) resetForm(false);
+    save(); render(); toast('已刪除');
+  }
+  function dup(id) {
+    const r = records.find(x => x.id === id); if (!r) return;
+    resetForm(false);
+    ['product', 'vendor', 'price', ...COST_KEYS].forEach(k => $(k).value = r[k] === 0 && k !== 'price' ? '' : r[k]);
+    $('date').value = todayStr();
+    liveCalc();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    toast('已複製到上方，可修改後新增');
+  }
+
+  // ---------- filters ----------
+  function filtered() {
+    const from = $('fFrom').value, to = $('fTo').value, v = $('fVendor').value, kw = $('fKeyword').value.trim().toLowerCase();
+    let list = records.filter(r =>
+      (!from || r.date >= from) && (!to || r.date <= to) &&
+      (!v || r.vendor === v) && (!kw || r.product.toLowerCase().includes(kw)));
+    list.sort((a, b) => {
+      let x = a[sortKey], y = b[sortKey];
+      if (x === null || x === undefined) x = -Infinity;
+      if (y === null || y === undefined) y = -Infinity;
+      if (typeof x === 'string') return x.localeCompare(y, 'zh-Hant') * sortDir || (b.createdAt - a.createdAt);
+      return (x - y) * sortDir || (b.createdAt - a.createdAt);
+    });
+    return list;
+  }
+  ['fFrom', 'fTo', 'fVendor', 'fKeyword'].forEach(id => $(id).addEventListener('input', render));
+  document.querySelectorAll('.chip').forEach(c => c.addEventListener('click', () => {
+    const now = new Date(), y = now.getFullYear(), m = now.getMonth();
+    const q = c.dataset.q;
+    if (q === 'month') { $('fFrom').value = ymd(new Date(y, m, 1)); $('fTo').value = ymd(new Date(y, m + 1, 0)); }
+    if (q === 'last') { $('fFrom').value = ymd(new Date(y, m - 1, 1)); $('fTo').value = ymd(new Date(y, m, 0)); }
+    if (q === 'year') { $('fFrom').value = `${y}-01-01`; $('fTo').value = `${y}-12-31`; }
+    if (q === 'all') { $('fFrom').value = ''; $('fTo').value = ''; $('fVendor').value = ''; $('fKeyword').value = ''; }
+    render();
+  }));
+  document.querySelectorAll('th[data-k]').forEach(th => th.addEventListener('click', () => {
+    const k = th.dataset.k;
+    if (sortKey === k) sortDir = -sortDir; else { sortKey = k; sortDir = (k === 'product' || k === 'vendor') ? 1 : -1; }
+    render();
+  }));
+
+  function totals(list) {
+    const t = { price: 0, cost: 0, profit: 0 };
+    COST_KEYS.forEach(k => t[k] = 0);
+    list.forEach(r => { t.price += num(r.price); t.cost += num(r.cost); t.profit += num(r.profit); COST_KEYS.forEach(k => t[k] += num(r[k])); });
+    t.margin = t.price > 0 ? t.profit / t.price : null;
+    return t;
+  }
+
+  function refreshVendors() {
+    const vendors = [...new Set(records.map(r => r.vendor).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'zh-Hant'));
+    $('vendorList').innerHTML = vendors.map(v => `<option value="${esc(v)}">`).join('');
+    const sel = $('fVendor'), cur = sel.value;
+    sel.innerHTML = '<option value="">全部廠商</option>' + vendors.map(v => `<option value="${esc(v)}">${esc(v)}</option>`).join('');
+    sel.value = vendors.includes(cur) ? cur : '';
+  }
+
+  // ---------- render ----------
+  function render() {
+    refreshVendors();
+    const list = filtered();
+    const t = totals(list);
+
+    $('sCount').textContent = list.length + (list.length !== records.length ? ` / ${records.length}` : '');
+    $('sRevenue').textContent = fmt(t.price);
+    $('sCost').textContent = fmt(t.cost);
+    $('sProfit').textContent = fmt(t.profit);
+    $('sMargin').textContent = pct(t.margin);
+
+    document.querySelectorAll('th[data-k]').forEach(th => {
+      th.querySelector('.arr').textContent = th.dataset.k === sortKey ? (sortDir > 0 ? '▲' : '▼') : '';
+    });
+
+    if (!list.length) {
+      $('tbody').innerHTML = `<tr><td colspan="12" class="empty"><b>📦</b>${records.length ? '沒有符合篩選條件的紀錄' : '還沒有紀錄，從上方輸入第一筆商品吧'}</td></tr>`;
+      $('tfoot').innerHTML = '';
+      return;
+    }
+    $('tbody').innerHTML = list.map(r => {
+      const neg = r.profit < 0;
+      return `<tr class="${r.id === editingId ? 'editing' : ''}">
+        <td>${esc(r.date)}</td>
+        <td class="prod" title="${esc(r.product)}">${esc(r.product)}</td>
+        <td>${esc(r.vendor) || '<span style="color:#b0b8c1">—</span>'}</td>
+        ${COST_KEYS.map(k => `<td class="n">${fmt(r[k])}</td>`).join('')}
+        <td class="n">${fmt(r.price)}</td>
+        <td class="n ${neg ? 'neg' : 'profit'}">${fmt(r.profit)}</td>
+        <td class="n ${neg ? 'neg' : ''}">${pct(r.margin)}</td>
+        <td><div class="act">
+          <button data-a="edit" data-id="${r.id}">編輯</button>
+          <button data-a="dup" data-id="${r.id}">複製</button>
+          <button data-a="del" data-id="${r.id}" class="del">刪除</button>
+        </div></td>
+      </tr>`;
+    }).join('');
+    $('tfoot').innerHTML = `<tr>
+      <td colspan="3">合計（${list.length} 筆）</td>
+      ${COST_KEYS.map(k => `<td class="n">${fmt(t[k])}</td>`).join('')}
+      <td class="n">${fmt(t.price)}</td>
+      <td class="n ${t.profit < 0 ? 'neg' : ''}">${fmt(t.profit)}</td>
+      <td class="n">${pct(t.margin)}</td>
+      <td></td></tr>`;
+  }
+  $('tbody').addEventListener('click', e => {
+    const b = e.target.closest('button[data-a]'); if (!b) return;
+    ({ edit: startEdit, del, dup })[b.dataset.a](b.dataset.id);
+  });
+
+  // ---------- Excel ----------
+  const HEADERS = ['日期', '產品名稱', '廠商名稱', '進貨成本價', '國際物流費', '包裝費', '宅配運費', '人工成本', '售價', '毛利金額', '毛利率'];
+  const FIELDS = ['date', 'product', 'vendor', 'purchase', 'intlShip', 'packing', 'delivery', 'labor', 'price', 'profit', 'margin'];
+
+  $('exportBtn').addEventListener('click', () => {
+    if (typeof XLSX === 'undefined') { toast('Excel 元件載入失敗，請確認網路後重新整理'); return; }
+    const list = filtered();
+    if (!list.length) { toast('目前沒有可匯出的紀錄'); return; }
+    const t = totals(list);
+    const rows = [HEADERS, ...list.map(r => FIELDS.map(f => f === 'margin' ? (r.margin === null ? '' : r.margin) : r[f]))];
+    rows.push(['合計', `${list.length} 筆`, '', ...COST_KEYS.map(k => round2(t[k])), round2(t.price), round2(t.profit), t.margin === null ? '' : t.margin]);
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    for (let R = 1; R < rows.length; R++) {
+      for (let C = 3; C <= 9; C++) { const c = ws[XLSX.utils.encode_cell({ r: R, c: C })]; if (c && c.t === 'n') c.z = '#,##0.##'; }
+      const m = ws[XLSX.utils.encode_cell({ r: R, c: 10 })]; if (m && m.t === 'n') m.z = '0.0%';
+    }
+    ws['!cols'] = [12, 30, 16, 12, 12, 10, 10, 10, 12, 12, 10].map(w => ({ wch: w }));
+    ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: rows.length - 2, c: 10 } }) };
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, '毛利紀錄');
+    const from = $('fFrom').value, to = $('fTo').value, v = $('fVendor').value;
+    let name = '代購毛利紀錄';
+    if (from || to) name += `_${(from || '起').replace(/-/g, '')}-${(to || '今').replace(/-/g, '')}`;
+    if (v) name += '_' + v;
+    if (!from && !to) name += '_' + todayStr().replace(/-/g, '');
+    XLSX.writeFile(wb, name + '.xlsx');
+    toast(`✓ 已匯出 ${list.length} 筆`);
+  });
+
+  $('importBtn').addEventListener('click', () => $('importFile').click());
+  $('importFile').addEventListener('change', async e => {
+    const file = e.target.files[0]; e.target.value = '';
+    if (!file) return;
+    if (typeof XLSX === 'undefined') { toast('Excel 元件載入失敗，請確認網路後重新整理'); return; }
+    try {
+      const wb = XLSX.read(await file.arrayBuffer(), { cellDates: true });
+      const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: true, defval: '' });
+      const head = (rows[0] || []).map(h => String(h).trim());
+      const idx = FIELDS.map((f, i) => head.indexOf(HEADERS[i]));
+      if (idx[0] < 0 || idx[1] < 0 || idx[8] < 0) { toast('格式不符：需要「日期、產品名稱、售價」欄位'); return; }
+      const keyOf = r => [r.date, r.product, r.vendor, r.price, ...COST_KEYS.map(k => r[k])].join('|');
+      const existing = new Set(records.map(keyOf));
+      let added = 0, skipped = 0;
+      rows.slice(1).forEach((row, n) => {
+        const get = i => idx[i] < 0 ? '' : row[idx[i]];
+        let date = get(0);
+        if (date instanceof Date) date = ymd(date);
+        else if (typeof date === 'number') { const d = XLSX.SSF.parse_date_code(date); date = `${d.y}-${String(d.m).padStart(2, '0')}-${String(d.d).padStart(2, '0')}`; }
+        else date = String(date).trim().replace(/\//g, '-').replace(/^(\d{4})-(\d{1,2})-(\d{1,2})$/, (_, y, m, d) => `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`);
+        const product = String(get(1)).trim();
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !product || product === '合計' || String(get(0)).trim() === '合計') return;
+        const r = { date, product, vendor: String(get(2)).trim(), price: num(get(8)) };
+        COST_KEYS.forEach((k, j) => r[k] = num(get(3 + j)));
+        Object.assign(r, calc(r));
+        if (existing.has(keyOf(r))) { skipped++; return; }
+        r.id = Date.now().toString(36) + n + Math.random().toString(36).slice(2, 6);
+        r.createdAt = Date.now() + n;
+        records.push(r); existing.add(keyOf(r)); added++;
+      });
+      save(); render();
+      toast(`✓ 匯入 ${added} 筆` + (skipped ? `，略過重複 ${skipped} 筆` : ''));
+    } catch (err) {
+      console.error(err); toast('匯入失敗，請確認是 Excel 檔');
+    }
+  });
+
+  // ---------- init ----------
+  $('date').value = todayStr();
+  liveCalc();
+  render();
+})();
+</script>
+</body>
+</html>
