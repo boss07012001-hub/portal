@@ -59,6 +59,18 @@
   .field input:focus, .filters input:focus, .filters select:focus { border-color: var(--accent2); box-shadow: 0 0 0 3px rgba(45,106,79,.12); }
   .field input.num { text-align: right; font-variant-numeric: tabular-nums; }
   .span-2 { grid-column: span 2; }
+  .taxbox { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; border: 1px solid var(--border); border-radius: 10px; padding: 5px 12px; min-height: 41px; background: #fff; }
+  .taxbox .chk { display: flex; align-items: center; gap: 6px; font-size: 14px; color: var(--text); cursor: pointer; user-select: none; }
+  .taxbox input[type=checkbox] { width: 17px; height: 17px; accent-color: var(--accent2); cursor: pointer; }
+  .seg { display: inline-flex; background: var(--bg); border-radius: 8px; padding: 3px; }
+  .seg label { cursor: pointer; }
+  .seg input { display: none; }
+  .seg span { display: block; padding: 3px 12px; border-radius: 6px; font-size: 13px; font-weight: 700; color: var(--text-muted); }
+  .seg input:checked + span { background: var(--accent); color: #fff; }
+  .taxbox.off .seg { opacity: .4; pointer-events: none; }
+  .taxamt { margin-left: auto; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--accent); }
+  .taxbox.off .taxamt { color: var(--text-muted); font-weight: 400; font-size: 13px; }
+  td small { color: var(--text-muted); font-size: 11px; margin-left: 2px; }
 
   .result-row {
     margin-top: 20px; display: grid; grid-template-columns: repeat(3, 1fr) auto; gap: 14px; align-items: stretch;
@@ -114,7 +126,7 @@
 
   /* TABLE */
   .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 12px; }
-  table { width: 100%; border-collapse: collapse; min-width: 1100px; }
+  table { width: 100%; border-collapse: collapse; min-width: 1180px; }
   th, td { padding: 10px 12px; border-bottom: 1px solid var(--border); white-space: nowrap; }
   th {
     background: var(--bg); font-size: 12px; font-weight: 700; color: var(--text-muted); text-align: left;
@@ -254,6 +266,17 @@
         <div class="field"><label>宅配運費</label><input class="num cost" type="number" id="delivery" min="0" step="any" inputmode="decimal" placeholder="0"></div>
         <div class="field"><label>人工成本</label><input class="num cost" type="number" id="labor" min="0" step="any" inputmode="decimal" placeholder="0"></div>
         <div class="field"><label>售價 <span class="req">*</span></label><input class="num" type="number" id="price" min="0" step="any" inputmode="decimal" placeholder="0" required></div>
+        <div class="field span-2">
+          <label>稅金（以售價計算）</label>
+          <div class="taxbox" id="taxBox">
+            <label class="chk"><input type="checkbox" id="taxOn"> 計入稅金</label>
+            <div class="seg">
+              <label><input type="radio" name="taxRate" value="0.02"><span>2%</span></label>
+              <label><input type="radio" name="taxRate" value="0.05" checked><span>5%</span></label>
+            </div>
+            <span class="taxamt" id="taxAmt">不計稅</span>
+          </div>
+        </div>
       </div>
 
       <div class="result-row">
@@ -312,6 +335,7 @@
             <th class="n" data-k="packing">包裝費<span class="arr"></span></th>
             <th class="n" data-k="delivery">宅配運費<span class="arr"></span></th>
             <th class="n" data-k="labor">人工成本<span class="arr"></span></th>
+            <th class="n" data-k="tax">稅金<span class="arr"></span></th>
             <th class="n" data-k="price">售價<span class="arr"></span></th>
             <th class="n" data-k="profit">毛利金額<span class="arr"></span></th>
             <th class="n" data-k="margin">毛利率<span class="arr"></span></th>
@@ -324,7 +348,7 @@
     </div>
 
     <p class="note">
-      ※ 毛利金額 = 售價 − (進貨成本 + 國際物流 + 包裝 + 宅配運費 + 人工成本)；毛利率 = 毛利 ÷ 售價。<br>
+      ※ 毛利金額 = 售價 − (進貨成本 + 國際物流 + 包裝 + 宅配運費 + 人工成本 + 稅金)；稅金 = 售價 × 2% 或 5%（有勾選才計算）；毛利率 = 毛利 ÷ 售價。<br>
       ※ 紀錄存在雲端，登入同一組帳號的任何電腦或手機都看得到；其他人剛新增的紀錄，按右上角「重新整理」即可看到。
     </p>
   </div>
@@ -388,12 +412,12 @@
   }
 
   // ---------- 欄位對應 ----------
-  const DB_MAP = { date: 'date', product: 'product', vendor: 'vendor', purchase: 'purchase', intlShip: 'intl_ship', packing: 'packing', delivery: 'delivery', labor: 'labor', price: 'price', cost: 'cost', profit: 'profit', margin: 'margin' };
+  const DB_MAP = { date: 'date', product: 'product', vendor: 'vendor', purchase: 'purchase', intlShip: 'intl_ship', packing: 'packing', delivery: 'delivery', labor: 'labor', taxRate: 'tax_rate', tax: 'tax', price: 'price', cost: 'cost', profit: 'profit', margin: 'margin' };
   function toDb(r) { const o = {}; for (const k in DB_MAP) o[DB_MAP[k]] = r[k] === undefined ? null : r[k]; return o; }
   function fromDb(d) {
     const r = { id: d.id, createdAt: Date.parse(d.created_at) || 0, createdBy: d.created_by || '' };
     for (const k in DB_MAP) r[k] = d[DB_MAP[k]];
-    ['purchase', 'intlShip', 'packing', 'delivery', 'labor', 'price', 'cost', 'profit'].forEach(k => r[k] = num(r[k]));
+    ['purchase', 'intlShip', 'packing', 'delivery', 'labor', 'taxRate', 'tax', 'price', 'cost', 'profit'].forEach(k => r[k] = num(r[k]));
     r.margin = r.margin === null || r.margin === undefined ? null : Number(r.margin);
     r.vendor = r.vendor || '';
     return r;
@@ -414,11 +438,13 @@
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
   function calc(r) {
-    const cost = COST_KEYS.reduce((s, k) => s + num(r[k]), 0);
     const price = num(r.price);
+    const taxRate = num(r.taxRate);
+    const tax = round2(price * taxRate);
+    const cost = COST_KEYS.reduce((s, k) => s + num(r[k]), 0) + tax;
     const profit = price - cost;
     const margin = price > 0 ? Math.round(profit / price * 1e6) / 1e6 : null;
-    return { cost: round2(cost), profit: round2(profit), margin };
+    return { taxRate, tax, cost: round2(cost), profit: round2(profit), margin };
   }
   function toast(msg) {
     const t = $('toast'); t.textContent = msg; t.classList.add('show');
@@ -482,10 +508,19 @@
   function readForm() {
     const r = { date: $('date').value, product: $('product').value.trim(), vendor: $('vendor').value.trim(), price: num($('price').value) };
     COST_KEYS.forEach(k => r[k] = num($(k).value));
+    r.taxRate = $('taxOn').checked ? num(document.querySelector('input[name=taxRate]:checked').value) : 0;
     return r;
+  }
+  function getTax() { return { on: $('taxOn').checked, rate: document.querySelector('input[name=taxRate]:checked').value }; }
+  function setTax(on, rate) {
+    $('taxOn').checked = !!on;
+    const el = document.querySelector(`input[name=taxRate][value="${rate}"]`);
+    if (el) el.checked = true;
   }
   function liveCalc() {
     const c = calc(readForm());
+    $('taxBox').classList.toggle('off', !$('taxOn').checked);
+    $('taxAmt').textContent = $('taxOn').checked ? fmt(c.tax) : '不計稅';
     $('rCost').textContent = fmt(c.cost);
     $('rProfit').textContent = fmt(c.profit);
     $('rMargin').textContent = pct(c.margin);
@@ -496,10 +531,11 @@
   form.addEventListener('input', liveCalc);
 
   function resetForm(keepDateVendor) {
-    const d = $('date').value, v = $('vendor').value;
+    const d = $('date').value, v = $('vendor').value, tx = getTax();
     form.reset();
     $('date').value = keepDateVendor && d ? d : todayStr();
     if (keepDateVendor) $('vendor').value = v;
+    setTax(tx.on, tx.rate); // 稅金勾選狀態保留，方便連續輸入
     editingId = null;
     $('formTitle').textContent = '新增商品';
     $('editTag').hidden = true;
@@ -535,6 +571,7 @@
 
   function fillForm(r) {
     ['product', 'vendor', 'price', ...COST_KEYS].forEach(k => $(k).value = r[k] === 0 && k !== 'price' ? '' : r[k]);
+    if (r.taxRate > 0) setTax(true, String(r.taxRate)); else setTax(false, getTax().rate);
   }
   function startEdit(id) {
     const r = records.find(x => x.id === id); if (!r) return;
@@ -599,8 +636,9 @@
 
   function totals(list) {
     const t = { price: 0, cost: 0, profit: 0 };
+    t.tax = 0;
     COST_KEYS.forEach(k => t[k] = 0);
-    list.forEach(r => { t.price += num(r.price); t.cost += num(r.cost); t.profit += num(r.profit); COST_KEYS.forEach(k => t[k] += num(r[k])); });
+    list.forEach(r => { t.price += num(r.price); t.cost += num(r.cost); t.profit += num(r.profit); t.tax += num(r.tax); COST_KEYS.forEach(k => t[k] += num(r[k])); });
     t.margin = t.price > 0 ? t.profit / t.price : null;
     return t;
   }
@@ -630,7 +668,7 @@
     });
 
     if (!list.length) {
-      $('tbody').innerHTML = `<tr><td colspan="12" class="empty"><b>📦</b>${records.length ? '沒有符合篩選條件的紀錄' : '還沒有紀錄，從上方輸入第一筆商品吧'}</td></tr>`;
+      $('tbody').innerHTML = `<tr><td colspan="13" class="empty"><b>📦</b>${records.length ? '沒有符合篩選條件的紀錄' : '還沒有紀錄，從上方輸入第一筆商品吧'}</td></tr>`;
       $('tfoot').innerHTML = '';
       return;
     }
@@ -641,6 +679,7 @@
         <td class="prod" title="${esc(r.product)}${r.createdBy ? '\n建立者：' + esc(r.createdBy) : ''}">${esc(r.product)}</td>
         <td>${esc(r.vendor) || '<span style="color:#b0b8c1">—</span>'}</td>
         ${COST_KEYS.map(k => `<td class="n">${fmt(r[k])}</td>`).join('')}
+        <td class="n">${r.taxRate > 0 ? fmt(r.tax) + `<small>(${Math.round(r.taxRate * 100)}%)</small>` : '<span style="color:#b0b8c1">—</span>'}</td>
         <td class="n">${fmt(r.price)}</td>
         <td class="n ${neg ? 'neg' : 'profit'}">${fmt(r.profit)}</td>
         <td class="n ${neg ? 'neg' : ''}">${pct(r.margin)}</td>
@@ -654,6 +693,7 @@
     $('tfoot').innerHTML = `<tr>
       <td colspan="3">合計（${list.length} 筆）</td>
       ${COST_KEYS.map(k => `<td class="n">${fmt(t[k])}</td>`).join('')}
+      <td class="n">${fmt(t.tax)}</td>
       <td class="n">${fmt(t.price)}</td>
       <td class="n ${t.profit < 0 ? 'neg' : ''}">${fmt(t.profit)}</td>
       <td class="n">${pct(t.margin)}</td>
@@ -665,7 +705,7 @@
   });
 
   // ---------- 批次上傳（匯入 / 舊資料搬移） ----------
-  const keyOf = r => [r.date, r.product, r.vendor, num(r.price), ...COST_KEYS.map(k => num(r[k]))].join('|');
+  const keyOf = r => [r.date, r.product, r.vendor, num(r.price), ...COST_KEYS.map(k => num(r[k])), num(r.taxRate)].join('|');
   async function uploadMany(list) {
     const existing = new Set(records.map(keyOf));
     const fresh = [];
@@ -700,23 +740,35 @@
   });
 
   // ---------- Excel ----------
-  const HEADERS = ['日期', '產品名稱', '廠商名稱', '進貨成本價', '國際物流費', '包裝費', '宅配運費', '人工成本', '售價', '毛利金額', '毛利率'];
-  const FIELDS = ['date', 'product', 'vendor', 'purchase', 'intlShip', 'packing', 'delivery', 'labor', 'price', 'profit', 'margin'];
+  const COLS = [
+    ['日期', 'date'], ['產品名稱', 'product'], ['廠商名稱', 'vendor'],
+    ['進貨成本價', 'purchase'], ['國際物流費', 'intlShip'], ['包裝費', 'packing'], ['宅配運費', 'delivery'], ['人工成本', 'labor'],
+    ['稅率', 'taxRate'], ['稅金', 'tax'], ['售價', 'price'], ['毛利金額', 'profit'], ['毛利率', 'margin']
+  ];
+  const PCT_COLS = ['taxRate', 'margin'];
 
   $('exportBtn').addEventListener('click', () => {
     if (typeof XLSX === 'undefined') { toast('Excel 元件載入失敗，請確認網路後重新整理'); return; }
     const list = filtered();
     if (!list.length) { toast('目前沒有可匯出的紀錄'); return; }
     const t = totals(list);
-    const rows = [HEADERS, ...list.map(r => FIELDS.map(f => f === 'margin' ? (r.margin === null ? '' : r.margin) : r[f]))];
-    rows.push(['合計', `${list.length} 筆`, '', ...COST_KEYS.map(k => round2(t[k])), round2(t.price), round2(t.profit), t.margin === null ? '' : t.margin]);
+    const rows = [COLS.map(c => c[0])];
+    list.forEach(r => rows.push(COLS.map(([, f]) => {
+      if (f === 'margin') return r.margin === null ? '' : r.margin;
+      if (f === 'taxRate') return r.taxRate > 0 ? r.taxRate : '';
+      return r[f];
+    })));
+    const tot = { date: '合計', product: `${list.length} 筆`, vendor: '', taxRate: '', margin: t.margin === null ? '' : t.margin };
+    rows.push(COLS.map(([, f]) => f in tot ? tot[f] : round2(t[f])));
     const ws = XLSX.utils.aoa_to_sheet(rows);
     for (let R = 1; R < rows.length; R++) {
-      for (let C = 3; C <= 9; C++) { const c = ws[XLSX.utils.encode_cell({ r: R, c: C })]; if (c && c.t === 'n') c.z = '#,##0.##'; }
-      const m = ws[XLSX.utils.encode_cell({ r: R, c: 10 })]; if (m && m.t === 'n') m.z = '0.0%';
+      COLS.forEach(([, f], C) => {
+        const c = ws[XLSX.utils.encode_cell({ r: R, c: C })];
+        if (c && c.t === 'n') c.z = PCT_COLS.includes(f) ? (f === 'taxRate' ? '0%' : '0.0%') : '#,##0.##';
+      });
     }
-    ws['!cols'] = [12, 30, 16, 12, 12, 10, 10, 10, 12, 12, 10].map(w => ({ wch: w }));
-    ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: rows.length - 2, c: 10 } }) };
+    ws['!cols'] = [12, 30, 16, 12, 12, 10, 10, 10, 8, 10, 12, 12, 10].map(w => ({ wch: w }));
+    ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: rows.length - 2, c: COLS.length - 1 } }) };
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, '毛利紀錄');
     const from = $('fFrom').value, to = $('fTo').value, v = $('fVendor').value;
@@ -738,18 +790,21 @@
       const wb = XLSX.read(await file.arrayBuffer(), { cellDates: true });
       const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: true, defval: '' });
       const head = (rows[0] || []).map(h => String(h).trim());
-      const idx = FIELDS.map((f, i) => head.indexOf(HEADERS[i]));
-      if (idx[0] < 0 || idx[1] < 0 || idx[8] < 0) { toast('格式不符：需要「日期、產品名稱、售價」欄位'); return; }
+      const idx = {}; COLS.forEach(([h, f]) => idx[f] = head.indexOf(h));
+      if (idx.date < 0 || idx.product < 0 || idx.price < 0) { toast('格式不符：需要「日期、產品名稱、售價」欄位'); return; }
       rows.slice(1).forEach(row => {
-        const get = i => idx[i] < 0 ? '' : row[idx[i]];
-        let date = get(0);
+        const get = f => idx[f] < 0 ? '' : row[idx[f]];
+        let date = get('date');
         if (date instanceof Date) date = ymd(date);
         else if (typeof date === 'number') { const d = XLSX.SSF.parse_date_code(date); date = `${d.y}-${String(d.m).padStart(2, '0')}-${String(d.d).padStart(2, '0')}`; }
         else date = String(date).trim().replace(/\//g, '-').replace(/^(\d{4})-(\d{1,2})-(\d{1,2})$/, (_, y, m, d) => `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`);
-        const product = String(get(1)).trim();
+        const product = String(get('product')).trim();
         if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !product || product === '合計') return;
-        const r = { date, product, vendor: String(get(2)).trim(), price: num(get(8)) };
-        COST_KEYS.forEach((k, j) => r[k] = num(get(3 + j)));
+        const r = { date, product, vendor: String(get('vendor')).trim(), price: num(get('price')) };
+        COST_KEYS.forEach(k => r[k] = num(get(k)));
+        let rate = num(String(get('taxRate')).replace('%', ''));
+        if (rate > 1) rate = rate / 100; // 「5」或「5%」文字都當成 5%
+        r.taxRate = rate;
         list.push(Object.assign(r, calc(r)));
       });
     } catch (err) { console.error(err); toast('匯入失敗，請確認是 Excel 檔'); return; }
