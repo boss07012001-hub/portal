@@ -59,6 +59,10 @@
   .field input:focus, .filters input:focus, .filters select:focus { border-color: var(--accent2); box-shadow: 0 0 0 3px rgba(45,106,79,.12); }
   .field input.num { text-align: right; font-variant-numeric: tabular-nums; }
   .span-2 { grid-column: span 2; }
+  .span-4 { grid-column: 1 / -1; }
+  .field textarea { border: 1px solid var(--border); border-radius: 10px; padding: 9px 12px; background: #fff; color: var(--text); outline: none; width: 100%; font-family: inherit; font-size: 14px; resize: vertical; min-height: 44px; line-height: 1.6; transition: border-color .15s, box-shadow .15s; }
+  .field textarea:focus { border-color: var(--accent2); box-shadow: 0 0 0 3px rgba(45,106,79,.12); }
+  td.note { max-width: 220px; overflow: hidden; text-overflow: ellipsis; color: var(--text-muted); font-size: 13px; }
   .taxbox { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; border: 1px solid var(--border); border-radius: 10px; padding: 5px 12px; min-height: 41px; background: #fff; }
   .taxbox .chk { display: flex; align-items: center; gap: 6px; font-size: 14px; color: var(--text); cursor: pointer; user-select: none; }
   .taxbox input[type=checkbox] { width: 17px; height: 17px; accent-color: var(--accent2); cursor: pointer; }
@@ -126,7 +130,7 @@
 
   /* TABLE */
   .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 12px; }
-  table { width: 100%; border-collapse: collapse; min-width: 1180px; }
+  table { width: 100%; border-collapse: collapse; min-width: 1320px; }
   th, td { padding: 10px 12px; border-bottom: 1px solid var(--border); white-space: nowrap; }
   th {
     background: var(--bg); font-size: 12px; font-weight: 700; color: var(--text-muted); text-align: left;
@@ -277,6 +281,10 @@
             <span class="taxamt" id="taxAmt">不計稅</span>
           </div>
         </div>
+        <div class="field span-4">
+          <label>說明</label>
+          <textarea id="note" rows="2" placeholder="例：這批是雙11團購、廠商有給折扣、運費和另一筆合併寄送…"></textarea>
+        </div>
       </div>
 
       <div class="result-row">
@@ -308,7 +316,7 @@
         <label class="f"><span>起日</span><input type="date" id="fFrom"></label>
         <label class="f"><span>迄日</span><input type="date" id="fTo"></label>
         <label class="f"><span>廠商</span><select id="fVendor"><option value="">全部廠商</option></select></label>
-        <label class="f"><span>搜尋產品</span><input type="search" id="fKeyword" placeholder="關鍵字"></label>
+        <label class="f"><span>搜尋產品／說明</span><input type="search" id="fKeyword" placeholder="關鍵字"></label>
         <div class="quick">
           <button type="button" class="chip" data-q="month">本月</button>
           <button type="button" class="chip" data-q="last">上月</button>
@@ -339,6 +347,7 @@
             <th class="n" data-k="price">售價<span class="arr"></span></th>
             <th class="n" data-k="profit">毛利金額<span class="arr"></span></th>
             <th class="n" data-k="margin">毛利率<span class="arr"></span></th>
+            <th data-k="note">說明<span class="arr"></span></th>
             <th>操作</th>
           </tr>
         </thead>
@@ -412,7 +421,7 @@
   }
 
   // ---------- 欄位對應 ----------
-  const DB_MAP = { date: 'date', product: 'product', vendor: 'vendor', purchase: 'purchase', intlShip: 'intl_ship', packing: 'packing', delivery: 'delivery', labor: 'labor', taxRate: 'tax_rate', tax: 'tax', price: 'price', cost: 'cost', profit: 'profit', margin: 'margin' };
+  const DB_MAP = { date: 'date', product: 'product', vendor: 'vendor', purchase: 'purchase', intlShip: 'intl_ship', packing: 'packing', delivery: 'delivery', labor: 'labor', note: 'note', taxRate: 'tax_rate', tax: 'tax', price: 'price', cost: 'cost', profit: 'profit', margin: 'margin' };
   function toDb(r) { const o = {}; for (const k in DB_MAP) o[DB_MAP[k]] = r[k] === undefined ? null : r[k]; return o; }
   function fromDb(d) {
     const r = { id: d.id, createdAt: Date.parse(d.created_at) || 0, createdBy: d.created_by || '' };
@@ -420,6 +429,7 @@
     ['purchase', 'intlShip', 'packing', 'delivery', 'labor', 'taxRate', 'tax', 'price', 'cost', 'profit'].forEach(k => r[k] = num(r[k]));
     r.margin = r.margin === null || r.margin === undefined ? null : Number(r.margin);
     r.vendor = r.vendor || '';
+    r.note = r.note || '';
     return r;
   }
 
@@ -506,7 +516,7 @@
   // ---------- form ----------
   const form = $('form');
   function readForm() {
-    const r = { date: $('date').value, product: $('product').value.trim(), vendor: $('vendor').value.trim(), price: num($('price').value) };
+    const r = { date: $('date').value, product: $('product').value.trim(), vendor: $('vendor').value.trim(), note: $('note').value.trim(), price: num($('price').value) };
     COST_KEYS.forEach(k => r[k] = num($(k).value));
     r.taxRate = $('taxOn').checked ? num(document.querySelector('input[name=taxRate]:checked').value) : 0;
     return r;
@@ -570,6 +580,7 @@
   $('cancelBtn').addEventListener('click', () => { resetForm(false); render(); });
 
   function fillForm(r) {
+    $('note').value = r.note || '';
     ['product', 'vendor', 'price', ...COST_KEYS].forEach(k => $(k).value = r[k] === 0 && k !== 'price' ? '' : r[k]);
     if (r.taxRate > 0) setTax(true, String(r.taxRate)); else setTax(false, getTax().rate);
   }
@@ -608,7 +619,7 @@
     const from = $('fFrom').value, to = $('fTo').value, v = $('fVendor').value, kw = $('fKeyword').value.trim().toLowerCase();
     let list = records.filter(r =>
       (!from || r.date >= from) && (!to || r.date <= to) &&
-      (!v || r.vendor === v) && (!kw || r.product.toLowerCase().includes(kw)));
+      (!v || r.vendor === v) && (!kw || r.product.toLowerCase().includes(kw) || (r.note || '').toLowerCase().includes(kw)));
     list.sort((a, b) => {
       let x = a[sortKey], y = b[sortKey];
       if (x === null || x === undefined) x = -Infinity;
@@ -668,7 +679,7 @@
     });
 
     if (!list.length) {
-      $('tbody').innerHTML = `<tr><td colspan="13" class="empty"><b>📦</b>${records.length ? '沒有符合篩選條件的紀錄' : '還沒有紀錄，從上方輸入第一筆商品吧'}</td></tr>`;
+      $('tbody').innerHTML = `<tr><td colspan="14" class="empty"><b>📦</b>${records.length ? '沒有符合篩選條件的紀錄' : '還沒有紀錄，從上方輸入第一筆商品吧'}</td></tr>`;
       $('tfoot').innerHTML = '';
       return;
     }
@@ -683,6 +694,7 @@
         <td class="n">${fmt(r.price)}</td>
         <td class="n ${neg ? 'neg' : 'profit'}">${fmt(r.profit)}</td>
         <td class="n ${neg ? 'neg' : ''}">${pct(r.margin)}</td>
+        <td class="note" title="${esc(r.note)}">${esc(r.note) || '<span style="color:#b0b8c1">—</span>'}</td>
         <td><div class="act">
           <button data-a="edit" data-id="${esc(r.id)}">編輯</button>
           <button data-a="dup" data-id="${esc(r.id)}">複製</button>
@@ -697,6 +709,7 @@
       <td class="n">${fmt(t.price)}</td>
       <td class="n ${t.profit < 0 ? 'neg' : ''}">${fmt(t.profit)}</td>
       <td class="n">${pct(t.margin)}</td>
+      <td></td>
       <td></td></tr>`;
   }
   $('tbody').addEventListener('click', e => {
@@ -705,7 +718,7 @@
   });
 
   // ---------- 批次上傳（匯入 / 舊資料搬移） ----------
-  const keyOf = r => [r.date, r.product, r.vendor, num(r.price), ...COST_KEYS.map(k => num(r[k])), num(r.taxRate)].join('|');
+  const keyOf = r => [r.date, r.product, r.vendor, num(r.price), ...COST_KEYS.map(k => num(r[k])), num(r.taxRate), (r.note || '').trim()].join('|');
   async function uploadMany(list) {
     const existing = new Set(records.map(keyOf));
     const fresh = [];
@@ -727,7 +740,7 @@
   $('migrateBtn').addEventListener('click', () => withBusy(async () => {
     let old = [];
     try { old = JSON.parse(localStorage.getItem(OLD_LOCAL_KEY)) || []; } catch (e) {}
-    const list = old.filter(r => r && r.date && r.product).map(r => { const o = { date: r.date, product: r.product, vendor: r.vendor || '', price: num(r.price) }; COST_KEYS.forEach(k => o[k] = num(r[k])); return Object.assign(o, calc(o)); });
+    const list = old.filter(r => r && r.date && r.product).map(r => { const o = { date: r.date, product: r.product, vendor: r.vendor || '', note: '', price: num(r.price) }; COST_KEYS.forEach(k => o[k] = num(r[k])); return Object.assign(o, calc(o)); });
     const res = await uploadMany(list);
     try { localStorage.removeItem(OLD_LOCAL_KEY); } catch (e) {}
     $('migrateBanner').hidden = true;
@@ -743,7 +756,7 @@
   const COLS = [
     ['日期', 'date'], ['產品名稱', 'product'], ['廠商名稱', 'vendor'],
     ['進貨成本價', 'purchase'], ['國際物流費', 'intlShip'], ['包裝費', 'packing'], ['宅配運費', 'delivery'], ['人工成本', 'labor'],
-    ['稅率', 'taxRate'], ['稅金', 'tax'], ['售價', 'price'], ['毛利金額', 'profit'], ['毛利率', 'margin']
+    ['稅率', 'taxRate'], ['稅金', 'tax'], ['售價', 'price'], ['毛利金額', 'profit'], ['毛利率', 'margin'], ['說明', 'note']
   ];
   const PCT_COLS = ['taxRate', 'margin'];
 
@@ -758,7 +771,7 @@
       if (f === 'taxRate') return r.taxRate > 0 ? r.taxRate : '';
       return r[f];
     })));
-    const tot = { date: '合計', product: `${list.length} 筆`, vendor: '', taxRate: '', margin: t.margin === null ? '' : t.margin };
+    const tot = { date: '合計', product: `${list.length} 筆`, vendor: '', taxRate: '', note: '', margin: t.margin === null ? '' : t.margin };
     rows.push(COLS.map(([, f]) => f in tot ? tot[f] : round2(t[f])));
     const ws = XLSX.utils.aoa_to_sheet(rows);
     for (let R = 1; R < rows.length; R++) {
@@ -767,7 +780,7 @@
         if (c && c.t === 'n') c.z = PCT_COLS.includes(f) ? (f === 'taxRate' ? '0%' : '0.0%') : '#,##0.##';
       });
     }
-    ws['!cols'] = [12, 30, 16, 12, 12, 10, 10, 10, 8, 10, 12, 12, 10].map(w => ({ wch: w }));
+    ws['!cols'] = [12, 30, 16, 12, 12, 10, 10, 10, 8, 10, 12, 12, 10, 40].map(w => ({ wch: w }));
     ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: rows.length - 2, c: COLS.length - 1 } }) };
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, '毛利紀錄');
@@ -800,7 +813,7 @@
         else date = String(date).trim().replace(/\//g, '-').replace(/^(\d{4})-(\d{1,2})-(\d{1,2})$/, (_, y, m, d) => `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`);
         const product = String(get('product')).trim();
         if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !product || product === '合計') return;
-        const r = { date, product, vendor: String(get('vendor')).trim(), price: num(get('price')) };
+        const r = { date, product, vendor: String(get('vendor')).trim(), note: String(get('note')).trim(), price: num(get('price')) };
         COST_KEYS.forEach(k => r[k] = num(get(k)));
         let rate = num(String(get('taxRate')).replace('%', ''));
         if (rate > 1) rate = rate / 100; // 「5」或「5%」文字都當成 5%
